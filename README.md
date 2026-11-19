@@ -1,46 +1,72 @@
-# 标书合并脚本使用说明
+# MergeBid — 标书 Markdown 智能合并工具
 
-本说明对应合并脚本 [code/merge_bid.py](code/merge_bid.py)，使用 `uv run` 直接运行（仅依赖 Python 标准库，无需额外安装依赖）。
+根据 Markdown 大纲自动遍历并合并各章节 `.md` 文件，提供 **CLI 命令行**（纯 Python 标准库）与 **PySide6 图形界面** 两种模式。
 
-## 当前大纲合并命令
+## 核心功能
 
-以当前大纲 [投标大纲-企业管理制度重构版-v03.md](投标大纲-企业管理制度重构版-v03.md) 与 `output/` 目录为例：
+- **大纲驱动合并**：按大纲层级（默认 4 级或 `leaf` 末级）匹配章节文件，输出目录默认为待合并文件夹的同级目录。
+- **序号/命名容错**：兼容标点空格差异、非法字符替换、文件名截断及仅序号命名（如 `2.3.1.md`）；缺失章节会保留标题并在合并后汇总提示。
+- **图片路径重算**：自动将章节内的相对图片/资源路径重算为相对于最终输出文件所在目录的路径，并对断链或预写路径给出告警。
+- **参数记忆复用**：自动保存运行配置，支持在界面或命令行中一键代入上次参数。
+
+## 快速开始
+
+### 1. 图形界面模式（PySide6）
+
+首次使用若需安装界面依赖：
 
 ```bash
-# 1. 预检匹配情况（推荐先执行：不生成合并文件，检查缺失、重复及容错匹配提示）
-uv run code/merge_bid.py --outline 投标大纲-企业管理制度重构版-v03.md --input-dir output --dry-run
-
-# 2. 正式合并（默认模式：若存在缺失章节会在文内插入占位注释，并在合并完成后列出缺失章节提示）
-uv run code/merge_bid.py --outline 投标大纲-企业管理制度重构版-v03.md --input-dir output
-
-# 3. 严格合并（存在任何缺失章节时直接报错退出，默认输出 投标大纲-企业管理制度重构版-v03-合并版.md）
-uv run code/merge_bid.py --outline 投标大纲-企业管理制度重构版-v03.md --input-dir output --missing-policy error
-
-# 4. 指定输出文件名并导出匹配审计报告（JSON）
-uv run code/merge_bid.py \
-  --outline 投标大纲-企业管理制度重构版-v03.md \
-  --input-dir output \
-  --output 投标大纲-企业管理制度重构版-v03-合并版.md \
-  --report code/merge_report.json
+python3 -m venv .venv
+.venv/bin/python -m pip install PySide6
 ```
 
-## 常用参数说明
+启动界面：
+
+```bash
+.venv/bin/python merge_bid.py --gui
+# 或
+ uv run merge_bid_gui.py
+```
+
+### 2. CLI 命令行模式
+
+```bash
+# 常规合并（默认输出到待合并文件夹的同级目录：<大纲文件名>-合并版.md）
+python3 merge_bid.py -O outline.md -i chapters
+
+# 指定输出文件夹与剔除章节首行重复标题
+python3 merge_bid.py -O outline.md -i chapters -d dist --strip-duplicate-title
+
+# 预检匹配与图片路径（不写入合并文件）
+python3 merge_bid.py -O outline.md -i chapters --dry-run
+
+# 快速代入上次运行参数（支持局部覆盖）
+python3 merge_bid.py --use-last
+python3 merge_bid.py --use-last --dry-run
+```
+
+## 常用 CLI 参数
 
 | 参数 | 说明 | 默认值 |
 | --- | --- | --- |
-| `-O`, `--outline` | 投标大纲 Markdown 文件路径（必填） | — |
-| `-i`, `--input-dir` | 章节 Markdown 所在目录（递归扫描 `.md`） | `output` |
-| `-o`, `--output` | 合并后输出的 Markdown 文件路径 | `<大纲文件名>-合并版.md` |
-| `--level` | 填充正文的大纲层级（`1`~`6` 或 `leaf` 自动识别末级标题） | `4` |
-| `--missing-policy` | 缺失章节处理：`placeholder`（注释占位）/ `empty`（留空）/ `error`（报错退出） | `placeholder` |
-| `--min-similarity` | 跨编号模糊匹配的最低相似度阈值（`0~1`） | `0.72` |
-| `--min-code-only-similarity` | 仅编号一致时兜底匹配的最低标题相似度（`0~1`） | `0.20` |
-| `--strip-duplicate-title` | 若章节文件首行重复了当前大纲标题，则自动剔除 | 关闭 |
-| `--report` | 输出 JSON 格式匹配审计报告的路径 | 不输出 |
-| `--dry-run` | 仅检查匹配情况与输出统计，不写入文件 | 关闭 |
+| `--gui` | 启动 PySide6 图形界面 | 关闭 |
+| `--use-last` | 代入上次运行保存的参数 | 关闭 |
+| `-O`, `--outline` | 大纲 Markdown 文件路径 | — |
+| `-i`, `--input-dir` | 待合并章节目录（递归遍历 `.md`） | `output` |
+| `-d`, `--output-dir` | 输出文件夹路径 | `input-dir` 同级目录 |
+| `-o`, `--output` | 自定义输出文件路径或文件名 | `<输出目录>/<大纲名>-合并版.md` |
+| `--level` | 填充层级（`1`~`6` 或 `leaf`） | `4` |
+| `--missing-policy` | 缺失处理：`placeholder` / `empty` / `error` | `placeholder` |
+| `--strip-duplicate-title` | 剔除章节正文首行重复标题 | 关闭 |
+| `--report` | 导出 JSON 审计报告路径 | 不导出 |
+| `--dry-run` | 仅预检，不写入文件 | 关闭 |
 
-## 运行单元测试
+## 运行测试
 
 ```bash
-uv run python -m unittest discover -s code -v
+# CLI 单元测试
+python3 -m unittest test_merge_bid.py -v
+
+# 全量测试（含 PySide6 GUI）
+.venv/bin/python -m unittest discover -p "test_*.py" -v
 ```
